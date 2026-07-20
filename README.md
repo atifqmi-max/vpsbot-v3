@@ -1,253 +1,257 @@
-# 🌩️ StoneNodes VPS Manager
+# StoneNodes VPS Manager Bot
 
-A professional Discord bot for managing Docker-based VPS instances via slash commands — powered by **tmate** for instant terminal access.
-
-> 📦 **Repository:** [github.com/krishdeep0009-glitch/discord-bot](https://github.com/krishdeep0009-glitch/discord-bot)
-
-![Python](https://img.shields.io/badge/Python-3.11+-blue?logo=python)
-![discord.py](https://img.shields.io/badge/discord.py-2.x-5865F2?logo=discord)
-![Docker](https://img.shields.io/badge/Docker-SDK-2496ED?logo=docker)
-![tmate](https://img.shields.io/badge/Terminal-tmate-orange)
-![SQLite](https://img.shields.io/badge/Database-SQLite-003B57?logo=sqlite)
-![License](https://img.shields.io/badge/License-MIT-green)
+A Discord bot that deploys and manages Docker-based VPS containers, with full
+`systemctl` support and **direct root SSH access** (real IP, port, username,
+and root password — works with Termius, PuTTY, or plain `ssh`).
 
 ---
 
 ## ✨ Features
 
-- 🐳 Docker-backed VPS instances with memory & CPU limits
-- 🖥️ **tmate terminal access** — SSH command + web browser terminal per VPS
-- 📬 Session links delivered privately via Discord DM
-- 🔐 Per-user access control + admin role enforcement
-- 📊 Live performance stats (CPU, RAM, disk, uptime, network)
-- 🗄️ SQLite database — zero external dependencies
-- 🎨 Professional branded embeds on every response
+- 🐉 1-click VPS deploy from Discord (`/deploy` or `/create`)
+- 🖥 Real Ubuntu/Debian containers with full `systemd` support
+- 🔑 Direct root SSH — real IPv4 + NAT port + root password sent to the user's DM
+- 🔄 Start / stop / restart / reinstall / regen-ssh commands
+- 📊 Live VPS performance stats
+- ⏰ Optional auto-expiry / auto-suspend
+- 🛡 Admin-only management commands (suspend, delete, list all, fix stuck containers)
+- 🐧 Optional Pterodactyl panel integration
 
 ---
 
-## 📋 Prerequisites
+## 📋 Requirements
 
-| Requirement | Version |
-|---|---|
-| Python | 3.11+ |
-| Docker Engine | 24+ (running on host) |
-| Git | Any recent version |
+Before you start, you need:
 
-> Add your Linux user to the Docker group (one-time):
-> ```bash
-> sudo usermod -aG docker $USER && newgrp docker
-> ```
+- A Linux server (Ubuntu 22.04/24.04 recommended) with a **public IP address**
+- **Docker** installed and running on that server
+- **Python 3.10+**
+- A **Discord Bot Token** (from the Discord Developer Portal)
+- Root/sudo access on the server (needed to run privileged Docker containers)
 
 ---
 
-## 🚀 Deploy on your VPS
+## 🚀 Setup — Step by Step
 
-### 1 — Clone the repository
+### 1. Clone the repository
 
 ```bash
-git clone https://github.com/atifqmi-max/vpsbot-v2/
-cd vpsbot-v2
+git clone https://github.com/atifqmi-max/vpsbot-v3.git
+cd vpsbot-v3
 ```
 
-### 2 — Create a virtual environment
+### 2. Install Docker (skip if already installed)
 
 ```bash
-apt install -y python3 python3-pip python3-venv
+curl -fsSL https://get.docker.com | sh
+sudo systemctl enable docker
+sudo systemctl start docker
+```
+
+Verify it works:
+
+```bash
+docker ps
+```
+
+### 3. Install Python & create a virtual environment
+
+```bash
+sudo apt update
+sudo apt install -y python3 python3-pip python3-venv
+
 python3 -m venv venv
 source venv/bin/activate
 ```
 
-### 3 — Install dependencies
+### 4. Install the Python dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4 — Configure environment variables
+### 5. Create your Discord Bot
+
+1. Go to https://discord.com/developers/applications
+2. Click **New Application** → give it a name (e.g. `StoneNodes`)
+3. Go to **Bot** → click **Add Bot**
+4. Under **Privileged Gateway Intents**, enable:
+   - Server Members Intent
+   - Message Content Intent
+5. Click **Reset Token** → copy the token (you'll need it in Step 7)
+6. Go to **OAuth2 → URL Generator**:
+   - Scopes: `bot`, `applications.commands`
+   - Bot Permissions: `Send Messages`, `Embed Links`, `Use Slash Commands`
+7. Open the generated URL and invite the bot to your Discord server
+
+### 6. Configure environment variables
+
+Copy the example env file:
 
 ```bash
 cp .env.example .env
 nano .env
 ```
 
-Fill in your values:
+Fill in at minimum:
 
 ```env
-DISCORD_TOKEN=your_discord_bot_token_here
-ADMIN_ROLE_ID=123456789012345678
+DISCORD_TOKEN=your_bot_token_here
+ADMIN_ROLE_ID=your_admin_role_id
+ADMIN_USER_IDS=your_discord_user_id
+SERVER_IP=your_server_public_ip
 ```
 
-### 5 — Run the bot
+> **How to find your server's public IP:**
+> ```bash
+> curl -4 ifconfig.me
+> ```
+
+### 7. Open the SSH port range in your firewall
+
+Each deployed VPS gets a random port in the `SSH_PORT_START`–`SSH_PORT_END`
+range (default `20000-29999`), forwarded to that container's SSH server.
+Open this range so users can actually connect:
 
 ```bash
-python stonenodes_bot.py
+sudo ufw allow 20000:29999/tcp
 ```
 
----
+If you're on a cloud provider (AWS, GCP, Azure, Contabo, Hetzner, etc.), also
+open this port range in the provider's **Security Group / Firewall** panel.
 
-## 🔧 Run as a systemd Service (keep alive on VPS)
+### 8. Run the bot
 
 ```bash
-nano /etc/systemd/system/stonenodes.service
+python3 stonenodes_bot.py
 ```
 
-Paste this (replace `YOUR_LINUX_USER`):
+If everything is set up correctly you'll see:
 
-```[Unit]
-Description=StoneNodes VPS Manager
-After=network.target docker.service
+```
+Database ready.
+Starting StoneNodes VPS Manager...
+```
+
+### 9. Keep it running 24/7 (recommended)
+
+Use `systemd` so the bot restarts automatically and survives reboots.
+
+Create `/etc/systemd/system/stonenodes.service`:
+
+```ini
+[Unit]
+Description=StoneNodes VPS Manager Bot
+After=docker.service network.target
 Requires=docker.service
 
 [Service]
 Type=simple
-User=root
-WorkingDirectory=/root/vpsbot-v2
-ExecStart=/root/vpsbot-v2/venv/bin/python /root/vpsbot-v2/stonenodes_bot.py
+WorkingDirectory=/path/to/vpsbot-v3
+ExecStart=/path/to/vpsbot-v3/venv/bin/python3 stonenodes_bot.py
 Restart=always
 RestartSec=5
-
-Environment=PYTHONUNBUFFERED=1
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-Enable and start:
+Then enable it:
 
 ```bash
-systemctl daemon-reload
-systemctl enable stonenodes
-systemctl start stonenodes
-systemctl status stonenodes
+sudo systemctl daemon-reload
+sudo systemctl enable stonenodes
+sudo systemctl start stonenodes
+sudo systemctl status stonenodes
+```
 
-# View live logs
-sudo journalctl -u stonenodes -f
+View logs any time with:
+
+```bash
+journalctl -u stonenodes -f
 ```
 
 ---
 
-## 🤖 Discord Bot Setup
+## 💬 Commands
 
-1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
-2. Click **New Application** → name it `Blined Cloud`
-3. Go to **Bot** tab → **Add Bot**
-4. Copy the **Token** → paste into `.env` as `DISCORD_TOKEN`
-5. Under **Privileged Gateway Intents**, enable:
-   - ✅ Server Members Intent
-6. Go to **OAuth2 → URL Generator**:
-   - Scopes: `bot`, `applications.commands`
-   - Permissions: `Send Messages`, `Embed Links`, `Read Message History`
-7. Open the generated URL → invite the bot to your server
-8. Right-click your **Admin role** → **Copy ID** → paste as `ADMIN_ROLE_ID`
-
-> Enable **Developer Mode**: Discord Settings → Advanced → Developer Mode ✅
-
----
-
-## 📖 Command Reference
-
-### 👤 User Commands
-
+### User commands
 | Command | Description |
 |---|---|
-| `/start <vps_id>` | Start your VPS |
-| `/stop <vps_id>` | Stop your VPS |
-| `/restart <vps_id>` | Restart your VPS |
-| `/reinstall <vps_id>` | Wipe & recreate VPS — new tmate session sent via DM |
-| `/regen-ssh <vps_id>` | Get a fresh tmate session link (sent via DM) |
-| `/vps-performance <vps_id>` | Live CPU, RAM, disk, uptime, network stats |
+| `/create` | Deploy a new VPS for yourself |
+| `/deploy` | 1-click VPS deploy (admin picks the user) |
+| `/start <id>` | Start a stopped VPS |
+| `/stop <id>` | Stop a running VPS |
+| `/restart <id>` | Restart a VPS |
+| `/reinstall <id>` | Wipe and rebuild a VPS (same specs, new root password) |
+| `/regen-ssh <id>` | Get a fresh tmate backup SSH link |
+| `/vps-performance <id>` | Live CPU/RAM/disk stats |
 | `/my-vps` | List all your VPS instances |
+| `/commands` | Show all available commands |
 
-### 🛡️ Admin Commands
-
+### Admin commands
 | Command | Description |
 |---|---|
-| `/admin-add-user <user>` | Grant a user hosting access |
-| `/admin-remove-user <user>` | Revoke a user's hosting access |
-| `/create <user> <memory> <cpu> <disk> <os>` | Provision a new VPS |
-| `/suspend-vps <vps_id>` | Stop & lock a VPS |
-| `/unsuspend-vps <vps_id>` | Reactivate a suspended VPS |
-| `/remove-vps <vps_id>` | Permanently delete a VPS |
-| `/list-vps` | List all VPS instances on the node |
-| `/node-stats` | Show host CPU, RAM, disk & container counts |
-
-### 🖥️ Supported OS Templates
-
-| Template | Docker Image |
-|---|---|
-| `ubuntu22` | `ubuntu:22.04` |
-| `debian11` | `debian:11` |
+| `/admin-add-user` | Grant a user hosting access |
+| `/admin-remove-user` | Revoke a user's hosting access |
+| `/extend-vps` | Change or remove a VPS's auto-expiry |
+| `/suspend-vps` | Suspend a VPS |
+| `/unsuspend-vps` | Reactivate a suspended VPS |
+| `/remove-vps` | Permanently delete a VPS |
+| `/fix-vps` | Force-remove a stuck container |
+| `/list-vps` | List every VPS on the node |
+| `/node-stats` | Host server resource usage |
+| `/ptero-status` | Pterodactyl panel connection status |
 
 ---
 
-## 🖥️ How tmate Access Works
+## 🔐 What the user receives
 
-When a VPS is created, the bot automatically:
+When a VPS is deployed, the owner gets a DM like this:
 
-1. Spins up a Docker container with the chosen OS
-2. Installs **tmate** inside the container
-3. Starts a tmate session and captures the SSH + web links
-4. Sends both links privately via **Discord DM**
+```
+⚡ Your VPS is Ready
+An admin deployed a VPS for you!
 
-The user gets two ways to connect:
+Instance ID       vps-xxxxxxx
+OS                Ubuntu 24.04
+RAM / CPU         16g / 4 vCPU
+Shared IPv4       <your SERVER_IP>
+SSH Port (NAT)    <random port from your range>
+Username          root
 
-```bash
-# SSH terminal (paste the command from your DM)
-ssh abc123@sgp1.tmate.io
+Root Password
+<16-character random password>
 
-# Or open the web terminal link in any browser
-https://tmate.io/t/abc123
+SSH Command
+ssh root@<SERVER_IP> -p <port>
 ```
 
-> ⚠️ tmate links give **full root access** — keep them private.
-> Use `/regen-ssh` anytime to invalidate the old session and get a new one.
+This command connects with any SSH client — Termius, PuTTY, or the terminal —
+because it's a real `openssh-server` running inside the container with a real
+port forwarded from your host.
 
 ---
 
-## 🗂️ Project Structure
+## 🛠 Troubleshooting
 
-```
-discord-bot/
-├── blinedcloud_bot.py   # Main bot — all commands, DB, Docker, tmate logic
-├── requirements.txt     # Python dependencies
-├── .env.example         # Environment variable template
-├── .env                 # Your secrets (git-ignored)
-├── .gitignore           # Keeps secrets & venv out of git
-├── blinedcloud.db       # SQLite DB (auto-created, git-ignored)
-├── blinedcloud.log      # Log file (auto-created, git-ignored)
-└── README.md            # This file
-```
+**"Docker socket not found" error**
+Docker isn't running. Start it with `sudo systemctl start docker`.
 
----
+**Users can't connect over SSH**
+Double-check step 7 — the `SSH_PORT_START`–`SSH_PORT_END` range must be open
+both in `ufw`/`iptables` **and** in your cloud provider's firewall.
 
-## 🔄 Update the Bot
+**Bot doesn't respond to slash commands**
+Slash commands can take up to an hour to sync globally the first time. Kick
+and re-invite the bot, or wait for Discord to sync.
 
-```bash
-cd discord-bot
-git pull
-source venv/bin/activate
-pip install -r requirements.txt
-sudo systemctl restart blinedcloud
-```
-
----
-
-## 🔒 Security Notes
-
-- Users can **only** manage VPS instances they own
-- Admin commands require the configured Discord role
-- tmate session links are sent via **private DM only**
-- Use `/regen-ssh` to rotate a session if it's been compromised
-- `.env`, `.db`, and `.log` are all git-ignored
+**"cgroupns not supported" warning in logs**
+This is safe to ignore on older `docker-py` versions — the bot automatically
+falls back to a compatible container config.
 
 ---
 
 ## 📄 License
 
-MIT — free to use, modify, and distribute.
-
----
-
-<div align="center">
-  Made with ❤️ by <a href="https://github.com/krishdeep0009-glitch">krishdeep0009-glitch</a>
-</div>
+For personal/internal use. Modify freely for your own hosting community.
