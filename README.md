@@ -201,6 +201,7 @@ journalctl -u stonenodes -f
 | `/fix-vps` | Force-remove a stuck container |
 | `/list-vps` | List every VPS on the node |
 | `/node-stats` | Host server resource usage |
+| `/check-network` | Diagnose SERVER_IP + SSH port setup |
 | `/ptero-status` | Pterodactyl panel connection status |
 
 ---
@@ -230,6 +231,31 @@ ssh root@<SERVER_IP> -p <port>
 This command connects with any SSH client — Termius, PuTTY, or the terminal —
 because it's a real `openssh-server` running inside the container with a real
 port forwarded from your host.
+
+---
+
+## 🧪 Verifying your setup after install
+
+Run `/check-network` (admin only) any time after the bot is running. It checks:
+- Docker socket is reachable
+- Your `.env` `SERVER_IP` actually matches this machine's real public IP
+- The start of your SSH port range is free to bind locally
+
+It **cannot** check your cloud firewall from inside the server itself. After
+running it, test from a **different machine** (your own laptop) with:
+
+```bash
+nc -zv <SERVER_IP> <port>
+```
+
+`succeeded` = port is open and reachable. `timed out` / `refused` = firewall
+or security group is still blocking it — go back to Step 7.
+
+Once a VPS is deployed, test the real SSH command from your own machine:
+
+```bash
+ssh root@<SERVER_IP> -p <port>
+```
 
 ---
 
