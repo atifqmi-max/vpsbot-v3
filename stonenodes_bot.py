@@ -46,7 +46,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
-        logging.FileHandler("dracohost.log"),
+        logging.FileHandler("stonenodes.log"),
         logging.StreamHandler(),
     ],
 )
@@ -79,7 +79,7 @@ CPU_MAP = {
     "xeon":   "Intel(R) Xeon(R) Platinum 8480+ @ 3.80GHz",
 }
 
-DB_FILE = "dracohost.db"
+DB_FILE = "stonenodes.db"
 
 # ─────────────────────────────────────────────────────
 # DATABASE
@@ -205,16 +205,16 @@ def next_id() -> str:
     dk_max = 0
     try:
         for ct in get_docker().containers.list(
-            all=True, filters={"label": "managed-by=dracohost"}
+            all=True, filters={"label": "managed-by=stonenodes"}
         ):
-            if ct.name.startswith("dracohost-vps-"):
+            if ct.name.startswith("stonenodes-vps-"):
                 try:
                     dk_max = max(dk_max, int(ct.name.split("-")[-1]))
                 except ValueError:
                     pass
     except Exception:
         pass
-    return f"dracohost-vps-{max(db_num, dk_max + 1):04d}"
+    return f"stonenodes-vps-{max(db_num, dk_max + 1):04d}"
 
 def gb(b): return round(b / 1024**3, 2)
 
@@ -446,21 +446,21 @@ def provision(vps_id, image, os_label, ram_mb, cpu_cores, disk_gb, cpu_name,
     )
 
     # ── Step 7: Fake /proc/meminfo and /proc/cpuinfo ─────────────────
-    ct.exec_run("mkdir -p /etc/dracohost", tty=False)
+    ct.exec_run("mkdir -p /etc/stonenodes", tty=False)
 
-    write_file(ct, "/etc/dracohost/meminfo", fake_meminfo(ram_mb))
-    r = ct.exec_run("mount --bind /etc/dracohost/meminfo /proc/meminfo", tty=False)
+    write_file(ct, "/etc/stonenodes/meminfo", fake_meminfo(ram_mb))
+    r = ct.exec_run("mount --bind /etc/stonenodes/meminfo /proc/meminfo", tty=False)
     log.info(f"[{vps_id}] meminfo bind mount: exit={r.exit_code}")
 
-    write_file(ct, "/etc/dracohost/cpuinfo", fake_cpuinfo(cpu_cores, cpu_name))
-    r = ct.exec_run("mount --bind /etc/dracohost/cpuinfo /proc/cpuinfo", tty=False)
+    write_file(ct, "/etc/stonenodes/cpuinfo", fake_cpuinfo(cpu_cores, cpu_name))
+    r = ct.exec_run("mount --bind /etc/stonenodes/cpuinfo /proc/cpuinfo", tty=False)
     log.info(f"[{vps_id}] cpuinfo bind mount: exit={r.exit_code}")
 
     # Re-apply mounts on container restart
     write_file(ct, "/etc/rc.local",
         "#!/bin/bash\n"
-        "mount --bind /etc/dracohost/meminfo /proc/meminfo 2>/dev/null\n"
-        "mount --bind /etc/dracohost/cpuinfo /proc/cpuinfo 2>/dev/null\n"
+        "mount --bind /etc/stonenodes/meminfo /proc/meminfo 2>/dev/null\n"
+        "mount --bind /etc/stonenodes/cpuinfo /proc/cpuinfo 2>/dev/null\n"
         "exit 0\n"
     )
     ct.exec_run("chmod +x /etc/rc.local", tty=False)
@@ -750,7 +750,7 @@ async def _before(): await bot.wait_until_ready()
 # ══════════════════════════════════════════════
 
 @bot.tree.command(name="start", description="Start your VPS.")
-@app_commands.describe(vps_id="e.g. dracohost-vps-0001")
+@app_commands.describe(vps_id="e.g. stonenodes-vps-0001")
 async def cmd_start(ix: discord.Interaction, vps_id: str):
     await ix.response.defer(ephemeral=True)
     vps_id = vps_id.lower()
@@ -773,7 +773,7 @@ async def cmd_start(ix: discord.Interaction, vps_id: str):
 
 
 @bot.tree.command(name="stop", description="Stop your VPS.")
-@app_commands.describe(vps_id="e.g. dracohost-vps-0001")
+@app_commands.describe(vps_id="e.g. stonenodes-vps-0001")
 async def cmd_stop(ix: discord.Interaction, vps_id: str):
     await ix.response.defer(ephemeral=True)
     vps_id = vps_id.lower()
@@ -790,7 +790,7 @@ async def cmd_stop(ix: discord.Interaction, vps_id: str):
 
 
 @bot.tree.command(name="restart", description="Restart your VPS.")
-@app_commands.describe(vps_id="e.g. dracohost-vps-0001")
+@app_commands.describe(vps_id="e.g. stonenodes-vps-0001")
 async def cmd_restart(ix: discord.Interaction, vps_id: str):
     await ix.response.defer(ephemeral=True)
     vps_id = vps_id.lower()
@@ -810,7 +810,7 @@ async def cmd_restart(ix: discord.Interaction, vps_id: str):
 
 
 @bot.tree.command(name="reinstall", description="Reinstall your VPS (same specs, data wiped).")
-@app_commands.describe(vps_id="e.g. dracohost-vps-0001")
+@app_commands.describe(vps_id="e.g. stonenodes-vps-0001")
 async def cmd_reinstall(ix: discord.Interaction, vps_id: str):
     await ix.response.defer(ephemeral=True)
     vps_id = vps_id.lower()
@@ -854,7 +854,7 @@ async def cmd_reinstall(ix: discord.Interaction, vps_id: str):
 
 
 @bot.tree.command(name="regen-ssh", description="Get a fresh tmate SSH session.")
-@app_commands.describe(vps_id="e.g. dracohost-vps-0001")
+@app_commands.describe(vps_id="e.g. stonenodes-vps-0001")
 async def cmd_regen(ix: discord.Interaction, vps_id: str):
     await ix.response.defer(ephemeral=True)
     vps_id = vps_id.lower()
@@ -878,7 +878,7 @@ async def cmd_regen(ix: discord.Interaction, vps_id: str):
 
 
 @bot.tree.command(name="vps-performance", description="Live stats for your VPS.")
-@app_commands.describe(vps_id="e.g. dracohost-vps-0001")
+@app_commands.describe(vps_id="e.g. stonenodes-vps-0001")
 async def cmd_perf(ix: discord.Interaction, vps_id: str):
     await ix.response.defer(ephemeral=True)
     vps_id = vps_id.lower()
@@ -963,7 +963,7 @@ async def cmd_commands(ix: discord.Interaction):
         ("`/ptero-status`",                                      "🦅  Pterodactyl status",     False),
     ])
     r = em("📖 Reference", "", DARK, fields=[
-        ("VPS ID",      "`dracohost-vps-0001`, `dracohost-vps-0002` ...",                 False),
+        ("VPS ID",      "`stonenodes-vps-0001`, `stonenodes-vps-0002` ...",                 False),
         ("OS",          "`ubuntu20` `ubuntu22` `ubuntu24` `debian11` `debian12`",        False),
         ("CPU",         "`ryzen9` → AMD Ryzen 9 9950X\n`xeon` → Intel Xeon Platinum 8480+", False),
         ("SSH Access",  "tmate SSH only — sent to DM, never public",                     False),
@@ -1164,6 +1164,62 @@ async def cmd_node(ix: discord.Interaction):
         ("📦 Total",       str(total),                                                                       True),
         *pf,
     ]))
+
+
+@bot.tree.command(name="check-network", description="[Admin] Diagnose SERVER_IP + SSH port setup.")
+async def cmd_check_network(ix: discord.Interaction):
+    await ix.response.defer(ephemeral=True)
+    if not is_admin(ix): return await ix.followup.send(embed=em("⛔ Forbidden", "Admin only.", RED))
+
+    lines  = []
+    ok_all = True
+
+    # 1. Docker reachable?
+    try:
+        get_docker()
+        lines.append("✅ Docker socket reachable")
+    except Exception as e:
+        ok_all = False
+        lines.append(f"❌ Docker socket NOT reachable — {str(e)[:150]}")
+
+    # 2. Does SERVER_IP match this machine's real public IP?
+    real_ip = None
+    try:
+        real_ip = requests.get("https://api.ipify.org", timeout=5).text.strip()
+        if real_ip == SERVER_IP:
+            lines.append(f"✅ SERVER_IP matches this machine's public IP (`{SERVER_IP}`)")
+        else:
+            ok_all = False
+            lines.append(
+                f"❌ SERVER_IP (`{SERVER_IP}`) does NOT match this machine's "
+                f"actual public IP (`{real_ip}`) — update your `.env`"
+            )
+    except Exception as e:
+        lines.append(f"⚠️ Could not verify public IP (no internet from this host?) — {str(e)[:120]}")
+
+    # 3. Is the SSH port range free to bind locally?
+    sample_port = SSH_PORT_START
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(("0.0.0.0", sample_port))
+        lines.append(f"✅ Port `{sample_port}` is bindable locally (range looks usable)")
+    except Exception as e:
+        ok_all = False
+        lines.append(f"❌ Port `{sample_port}` failed to bind locally — {str(e)[:120]}")
+
+    lines.append(
+        "\n⚠️ This command can only check the **local** machine. It "
+        "**cannot** confirm your cloud firewall / security group allows "
+        f"inbound TCP on `{SSH_PORT_START}-{SSH_PORT_END}` — verify that "
+        "separately in your provider's dashboard, then test from another "
+        "machine with:\n```nc -zv " + (real_ip or SERVER_IP) + f" {sample_port}```"
+    )
+
+    await ix.followup.send(embed=em(
+        "✅ Network Check Passed" if ok_all else "⚠️ Network Check Found Issues",
+        "\n".join(lines),
+        GREEN if ok_all else YELLOW,
+    ))
 
 
 @bot.tree.command(name="ptero-status", description="[Admin] Pterodactyl panel status.")
